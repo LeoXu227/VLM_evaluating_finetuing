@@ -33,7 +33,14 @@ _vvu_spec.loader.exec_module(_vvu_mod)
 process_vision_info = _vvu_mod.process_vision_info
 cached_process_vision_info = _vvu_mod.cached_process_vision_info
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoProcessor, GenerationConfig, AutoConfig, AutoModelForVision2Seq
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoProcessor, GenerationConfig, AutoConfig
+try:
+    from transformers import AutoModelForVision2Seq
+except ImportError:  # transformers>=5 renamed this auto class
+    try:
+        from transformers import AutoModelForImageTextToText as AutoModelForVision2Seq
+    except ImportError:
+        AutoModelForVision2Seq = None
 from transformers import Qwen2_5_VLForConditionalGeneration, Qwen2_5_VLConfig, Qwen3VLForConditionalGeneration
 from collections import defaultdict
 
@@ -268,6 +275,11 @@ def normalize_fps_for_processor(processor, fps):
 def load_transformers_vl_model(model_path: str, **kwargs):
     if is_qwen3_model(model_path):
         return Qwen3VLForConditionalGeneration.from_pretrained(model_path, **kwargs)
+    if AutoModelForVision2Seq is None:
+        raise ImportError(
+            "No Vision2Seq auto class available in this transformers version; "
+            "use a Qwen3 model path or install a compatible transformers build."
+        )
     return AutoModelForVision2Seq.from_pretrained(model_path, use_sliding_window=True, **kwargs)
 
 
