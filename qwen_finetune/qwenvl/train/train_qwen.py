@@ -99,6 +99,76 @@ def set_model(model_args, model):
         model.lm_head.requires_grad = False
 
 
+def _resolve_torch_dtype(training_args):
+    """Never default to fp32 full-model weights on GPU (OOM on ~11GB cards)."""
+    if getattr(training_args, "bf16", False):
+        return torch.bfloat16
+    if getattr(training_args, "fp16", False):
+        return torch.float16
+    logging.warning(
+        "Neither --bf16 nor --fp16 set; defaulting model load dtype to float16 "
+        "to avoid an fp32 GPU materialization."
+    )
+    return torch.float16
+
+
+def _build_quantization_config(training_args, torch_dtype):
+    if not (training_args.load_in_4bit or training_args.load_in_8bit):
+        return None
+    if training_args.load_in_4bit and training_args.load_in_8bit:
+        raise ValueError("Pass only one of --load_in_4bit / --load_in_8bit.")
+    try:
+        from transformers import BitsAndBytesConfig
+    except ImportError as e:
+        raise ImportError(
+            "bitsandbytes/transformers BitsAndBytesConfig required for "
+            "--load_in_4bit / --load_in_8bit"
+        ) from e
+    return BitsAndBytesConfig(
+        load_in_4bit=bool(training_args.load_in_4bit),
+        load_in_8bit=bool(training_args.load_in_8bit),
+        bnb_4bit_compute_dtype=torch_dtype,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+    )
+
+
+def _from_pretrained(model_cls, model_args, training_args, attn_implementation):
+    torch_dtype = _resolve_torch_dtype(training_args)
+    quantization_config = _build_quantization_config(training_args, torch_dtype)
+    using_deepspeed = bool(getattr(training_args, "deepspeed", None))
+
+    kwargs = dict(
+        cache_dir=training_args.cache_dir,
+        attn_implementation=attn_implementation,
+        low_cpu_mem_usage=True,
+    )
+
+    if quantization_config is not None:
+        # Quantized weights must land on the local CUDA device; avoid a later
+        # fp32-ish Trainer.model.to(device) of a full-precision copy.
+        if using_deepspeed:
+            raise ValueError(
+                "load_in_4bit/load_in_8bit is incompatible with DeepSpeed in this "
+                "script; set USE_DEEPSPEED=0."
+            )
+        kwargs["quantization_config"] = quantization_config
+        kwargs["device_map"] = {"": training_args.device}
+        # dtype still helps non-quantized buffers (e.g. norms) stay half.
+        kwargs["dtype"] = torch_dtype
+    else:
+        kwargs["dtype"] = torch_dtype
+        # Keep weights half-precision on CPU; Trainer/DeepSpeed will place them.
+        # Explicit dtype prevents accidental fp32 .to(cuda) materialization.
+
+    rank0_print(
+        f"Loading {model_cls.__name__} dtype={torch_dtype} "
+        f"quantization={'4bit' if training_args.load_in_4bit else ('8bit' if training_args.load_in_8bit else 'none')} "
+        f"deepspeed={using_deepspeed}"
+    )
+    return model_cls.from_pretrained(model_args.model_name_or_path, **kwargs)
+
+
 def train(attn_implementation="flash_attention_2"):
     global local_rank
 
@@ -131,11 +201,11 @@ def train(attn_implementation="flash_attention_2"):
                 "Qwen3VLMoeForConditionalGeneration is unavailable in this "
                 "transformers install; upgrade transformers or pick another model."
             )
-        model = Qwen3VLMoeForConditionalGeneration.from_pretrained(
-            model_args.model_name_or_path,
-            cache_dir=training_args.cache_dir,
-            attn_implementation=attn_implementation,
-            dtype=(torch.bfloat16 if training_args.bf16 else None),
+        model = _from_pretrained(
+            Qwen3VLMoeForConditionalGeneration,
+            model_args,
+            training_args,
+            attn_implementation,
         )
         data_args.model_type = "qwen3vl"
     elif "qwen3" in model_name_lower:
@@ -144,11 +214,11 @@ def train(attn_implementation="flash_attention_2"):
                 "Qwen3VLForConditionalGeneration is unavailable in this "
                 "transformers install; upgrade transformers or pick another model."
             )
-        model = Qwen3VLForConditionalGeneration.from_pretrained(
-            model_args.model_name_or_path,
-            cache_dir=training_args.cache_dir,
-            attn_implementation=attn_implementation,
-            dtype=(torch.bfloat16 if training_args.bf16 else None),
+        model = _from_pretrained(
+            Qwen3VLForConditionalGeneration,
+            model_args,
+            training_args,
+            attn_implementation,
         )
         data_args.model_type = "qwen3vl"
     elif "qwen2.5" in model_name_lower:
@@ -157,11 +227,11 @@ def train(attn_implementation="flash_attention_2"):
                 "Qwen2_5_VLForConditionalGeneration is unavailable in this "
                 "transformers install; upgrade transformers or pick another model."
             )
-        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            model_args.model_name_or_path,
-            cache_dir=training_args.cache_dir,
-            attn_implementation=attn_implementation,
-            dtype=(torch.bfloat16 if training_args.bf16 else None),
+        model = _from_pretrained(
+            Qwen2_5_VLForConditionalGeneration,
+            model_args,
+            training_args,
+            attn_implementation,
         )
         data_args.model_type = "qwen2.5vl"
     else:
@@ -170,11 +240,11 @@ def train(attn_implementation="flash_attention_2"):
                 "Qwen2VLForConditionalGeneration is unavailable in this "
                 "transformers install; upgrade transformers or pick another model."
             )
-        model = Qwen2VLForConditionalGeneration.from_pretrained(
-            model_args.model_name_or_path,
-            cache_dir=training_args.cache_dir,
-            attn_implementation=attn_implementation,
-            dtype=(torch.bfloat16 if training_args.bf16 else None),
+        model = _from_pretrained(
+            Qwen2VLForConditionalGeneration,
+            model_args,
+            training_args,
+            attn_implementation,
         )
         data_args.model_type = "qwen2vl"
 
@@ -209,8 +279,16 @@ def train(attn_implementation="flash_attention_2"):
         from peft import LoraConfig, get_peft_model, TaskType
         print("LoRA enabled")
 
-        for p in model.parameters():
-            p.requires_grad = False
+        if training_args.load_in_4bit or training_args.load_in_8bit:
+            from peft import prepare_model_for_kbit_training
+
+            model = prepare_model_for_kbit_training(
+                model,
+                use_gradient_checkpointing=training_args.gradient_checkpointing,
+            )
+        else:
+            for p in model.parameters():
+                p.requires_grad = False
 
         lora_config = LoraConfig(
             r=training_args.lora_r or 64,

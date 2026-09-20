@@ -43,3 +43,13 @@ class TrainingArguments(transformers.TrainingArguments):
     lora_r: int = field(default=64)
     lora_alpha: int = field(default=128)
     lora_dropout: float = field(default=0.0)
+
+    ## Memory / quantization (bitsandbytes). Prefer for ~11GB GPUs.
+    load_in_4bit: bool = field(
+        default=False,
+        metadata={"help": "Load base model in 4-bit (NF4) via bitsandbytes for LoRA SFT."},
+    )
+    load_in_8bit: bool = field(
+        default=False,
+        metadata={"help": "Load base model in 8-bit via bitsandbytes for LoRA SFT."},
+    )

@@ -8,9 +8,15 @@ MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 MASTER_PORT=${MASTER_PORT:-$(python3 -c 'import random; print(random.randint(20001, 29999))')}
 NPROC_PER_NODE=${NPROC_PER_NODE:-1}
 
-# DeepSpeed configuration
+# DeepSpeed configuration (disable for 4/8-bit or single-GPU ~11GB smoke)
 deepspeed=./scripts/zero3.json
 use_deepspeed=${USE_DEEPSPEED:-1}
+load_in_4bit=${LOAD_IN_4BIT:-0}
+load_in_8bit=${LOAD_IN_8BIT:-0}
+if [ "$load_in_4bit" = "1" ] || [ "$load_in_8bit" = "1" ]; then
+    # bitsandbytes + DeepSpeed is unsupported in train_qwen.py
+    use_deepspeed=0
+fi
 
 # Model configuration
 llm=${MODEL_PATH:-"Qwen/Qwen3-VL-4B-Instruct"}
@@ -30,6 +36,20 @@ video_max_pixels=${VIDEO_MAX_PIXELS:-50176}
 video_min_pixels=${VIDEO_MIN_PIXELS:-784}
 video_fps=${VIDEO_FPS:-1}
 
+# Precision: Turing (2080 Ti) has no bf16 — set FP16=1 BF16=0 on MAGIC.
+# Ampere+ can use BF16=1 FP16=0. Default keeps prior --bf16 behavior.
+bf16=${BF16:-1}
+fp16=${FP16:-0}
+if [ "$fp16" = "1" ]; then
+    bf16=0
+fi
+if [ "$bf16" = "1" ]; then
+    precision_args="--bf16 True --fp16 False"
+else
+    # Always load/train in fp16 when bf16 is off (never accidental fp32 weights).
+    precision_args="--fp16 True --bf16 False"
+fi
+
 # Training entry point
 entry_file=qwenvl/train/train_qwen.py
 
@@ -40,6 +60,13 @@ datasets=${DATASETS:-"reva_train_small"}
 run_name=${RUN_NAME:-"qwen_reva_sft"}
 output_dir=${OUTPUT_DIR:-"../outputs/qwen_reva_sft"}
 report_to=${REPORT_TO:-"none"}
+
+quant_args=""
+if [ "$load_in_4bit" = "1" ]; then
+    quant_args="--load_in_4bit True"
+elif [ "$load_in_8bit" = "1" ]; then
+    quant_args="--load_in_8bit True"
+fi
 
 # Training arguments
 args="
@@ -53,7 +80,8 @@ args="
     --lora_r ${LORA_R:-8} \
     --lora_alpha ${LORA_ALPHA:-16} \
     --lora_dropout ${LORA_DROPOUT:-0.0} \
-    --bf16 \
+    ${precision_args} \
+    ${quant_args} \
     --output_dir ${output_dir} \
     --num_train_epochs ${epochs} \
     --per_device_train_batch_size ${batch_size} \
@@ -92,6 +120,8 @@ echo "Dataset:  ${datasets}"
 echo "Output:   ${output_dir}"
 echo "GPUs:     ${NPROC_PER_NODE}"
 echo "DeepSpeed:${use_deepspeed}"
+echo "Precision: bf16=${bf16} fp16=$([ "$bf16" = "1" ] && echo 0 || echo 1)"
+echo "Quant:    4bit=${load_in_4bit} 8bit=${load_in_8bit}"
 
 # Launch training
 torchrun --nproc_per_node=${NPROC_PER_NODE} \
