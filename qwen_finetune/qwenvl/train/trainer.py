@@ -7,29 +7,46 @@ try:
 except ImportError:
     flash_attn_varlen_func = None
     _HAS_FLASH_ATTN = False
-from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
+try:
+    from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
+except ImportError:
+    FlashAttentionKwargs = dict  # type: ignore[misc,assignment]
 from transformers import Trainer
 from transformers.cache_utils import Cache
 from transformers.utils.deprecation import deprecate_kwarg
 from transformers.processing_utils import Unpack
-from transformers.models.qwen2_vl.modeling_qwen2_vl import (
-    Qwen2VisionTransformerPretrainedModel,
-    Qwen2VLModel,
-    apply_multimodal_rotary_pos_emb,
-)
-from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
-    Qwen2_5_VisionTransformerPretrainedModel,
-    Qwen2_5_VLModel,
-)
-from transformers.models.qwen3_vl.modeling_qwen3_vl import (
-    Qwen3VLVisionModel,
-    Qwen3VLModel,
-    apply_rotary_pos_emb,
-)
-from transformers.models.qwen3_vl_moe.modeling_qwen3_vl_moe import (
-    Qwen3VLMoeVisionModel,
-    Qwen3VLMoeModel,
-)
+try:
+    from transformers.models.qwen2_vl.modeling_qwen2_vl import (
+        Qwen2VisionTransformerPretrainedModel,
+        Qwen2VLModel,
+        apply_multimodal_rotary_pos_emb,
+    )
+    from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
+        Qwen2_5_VisionTransformerPretrainedModel,
+        Qwen2_5_VLModel,
+    )
+    from transformers.models.qwen3_vl.modeling_qwen3_vl import (
+        Qwen3VLVisionModel,
+        Qwen3VLModel,
+        apply_rotary_pos_emb,
+    )
+    from transformers.models.qwen3_vl_moe.modeling_qwen3_vl_moe import (
+        Qwen3VLMoeVisionModel,
+        Qwen3VLMoeModel,
+    )
+    _HAS_ATTN_PATCH_SYMBOLS = True
+except ImportError:
+    Qwen2VisionTransformerPretrainedModel = None  # type: ignore[misc,assignment]
+    Qwen2VLModel = None  # type: ignore[misc,assignment]
+    apply_multimodal_rotary_pos_emb = None  # type: ignore[misc,assignment]
+    Qwen2_5_VisionTransformerPretrainedModel = None  # type: ignore[misc,assignment]
+    Qwen2_5_VLModel = None  # type: ignore[misc,assignment]
+    Qwen3VLVisionModel = None  # type: ignore[misc,assignment]
+    Qwen3VLModel = None  # type: ignore[misc,assignment]
+    apply_rotary_pos_emb = None  # type: ignore[misc,assignment]
+    Qwen3VLMoeVisionModel = None  # type: ignore[misc,assignment]
+    Qwen3VLMoeModel = None  # type: ignore[misc,assignment]
+    _HAS_ATTN_PATCH_SYMBOLS = False
 from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
@@ -218,10 +235,10 @@ def return_mask(
 
 
 def replace_qwen2_vl_attention_class():
-    if not _HAS_FLASH_ATTN:
+    if not _HAS_FLASH_ATTN or not _HAS_ATTN_PATCH_SYMBOLS:
         logger.warning_once(
-            "flash_attn is not installed; skipping custom FlashAttention patches. "
-            "Use attn_implementation='sdpa' or 'eager'."
+            "flash_attn / attention patch symbols unavailable; skipping custom "
+            "FlashAttention patches. Use attn_implementation='sdpa' or 'eager'."
         )
         return
 
