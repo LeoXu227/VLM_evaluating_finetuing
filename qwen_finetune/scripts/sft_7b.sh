@@ -72,7 +72,7 @@ args="
     --save_total_limit 1 \
     --learning_rate ${lr} \
     --weight_decay 0 \
-    --warmup_ratio 0.03 \
+    --warmup_steps 0.03 \
     --max_grad_norm 1 \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
