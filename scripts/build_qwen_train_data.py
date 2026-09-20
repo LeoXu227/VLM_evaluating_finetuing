@@ -38,33 +38,91 @@ def normalize_video_path(file_path: str, video_root: Path | None = None) -> str:
 
 def format_options(options: dict[str, str]) -> str:
     """Return sorted multiple-choice options, one option per line."""
-    # TODO(student): sort option labels and format each line as "A. option text".
-    raise NotImplementedError("TODO: implement format_options")
+    return "\n".join(f"{label}. {options[label]}" for label in sorted(options.keys()))
 
 
 def format_question(question: str, options: dict[str, str], prompt_style: str) -> str:
     """Build the human message used by Qwen SFT."""
-    # TODO(student): call format_options and support "plain" and "reva_eval" styles.
-    raise NotImplementedError("TODO: implement format_question")
+    option_block = format_options(options)
+    if prompt_style == "plain":
+        return f"<video>\nQuestion: {question}\n{option_block}"
+    if prompt_style == "reva_eval":
+        return (
+            "<video>\n"
+            "Please carefully watch the video and answer the multiple-choice question below.\n"
+            "Think step-by-step within <think> </think> tags, then provide only the letter of "
+            "the correct option within <answer> </answer> tags.\n"
+            f"Question: {question}\n"
+            f"{option_block}"
+        )
+    raise ValueError(f"Unsupported prompt_style: {prompt_style}")
 
 
 def format_answer(qa: dict[str, Any], answer_style: str) -> str:
     """Format the assistant target from a ReVA QA item."""
-    # TODO(student): support "letter", "tagged", and "cot_tagged" answer styles.
-    raise NotImplementedError("TODO: implement format_answer")
+    letter = str(qa.get("correct_answer", "")).strip().upper()
+    if answer_style == "letter":
+        return f"Answer: {letter}"
+    if answer_style == "tagged":
+        return f"<answer>{letter}</answer>"
+    if answer_style == "cot_tagged":
+        reasoning = str(qa.get("reasoning", "")).strip()
+        return f"<think>{reasoning}</think><answer>{letter}</answer>"
+    raise ValueError(f"Unsupported answer_style: {answer_style}")
 
 
 def iter_reva_qas(data: dict[str, Any]) -> Iterator[dict[str, Any]]:
     """Yield one flat QA record at a time from nested ReVA annotations."""
-    # TODO(student): iterate videos -> mcq category -> question_type -> qa list.
-    raise NotImplementedError("TODO: implement iter_reva_qas")
+    for video_id, video_item in data.get("videos", {}).items():
+        mcq = video_item.get("mcq", {}) or {}
+        for category, question_types in mcq.items():
+            if not isinstance(question_types, dict):
+                continue
+            for question_type, qa_list in question_types.items():
+                if not isinstance(qa_list, list):
+                    continue
+                for qa in qa_list:
+                    record: dict[str, Any] = {
+                        "video_id": video_id,
+                        "file_path": video_item.get("file_path", ""),
+                        "category": category,
+                        "question_type": question_type,
+                    }
+                    if isinstance(qa, dict):
+                        record.update(qa)
+                    yield record
 
 
 def convert_item(item: dict[str, Any], args: argparse.Namespace) -> dict[str, Any] | None:
     """Convert one flat ReVA QA item into one Qwen conversation sample."""
-    # TODO(student): normalize video path, optionally check video exists,
-    # build question/answer, return {video, conversations, optional metadata}.
-    raise NotImplementedError("TODO: implement convert_item")
+    video_rel = normalize_video_path(item.get("file_path", ""), args.video_root)
+    if args.require_video:
+        video_abs = Path(args.video_root) / video_rel
+        if not video_abs.is_file():
+            return None
+
+    human = format_question(
+        str(item.get("question", "")),
+        item.get("options", {}) or {},
+        args.prompt_style,
+    )
+    gpt = format_answer(item, args.answer_style)
+    sample: dict[str, Any] = {
+        "video": video_rel,
+        "conversations": [
+            {"from": "human", "value": human},
+            {"from": "gpt", "value": gpt},
+        ],
+    }
+    if args.keep_metadata:
+        sample["metadata"] = {
+            "video_id": item.get("video_id"),
+            "category": item.get("category"),
+            "question_type": item.get("question_type"),
+            "qa_id": item.get("qa_id"),
+            "correct_answer": str(item.get("correct_answer", "")).strip().upper(),
+        }
+    return sample
 
 
 def parse_args() -> argparse.Namespace:
