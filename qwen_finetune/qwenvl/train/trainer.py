@@ -251,7 +251,8 @@ def replace_qwen2_vl_attention_class():
     if not _HAS_FLASH_ATTN or not _HAS_ATTN_PATCH_SYMBOLS:
         logger.warning_once(
             "flash_attn / attention patch symbols unavailable; skipping custom "
-            "FlashAttention patches. Use attn_implementation='sdpa' or 'eager'."
+            "FlashAttention patches. Use attn_implementation='eager' "
+            "(avoid 'sdpa' with flattened 1D masks under transformers 5)."
         )
         return
 

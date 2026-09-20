@@ -110,6 +110,20 @@ def train(attn_implementation="flash_attention_2"):
     local_rank = training_args.local_rank
     os.makedirs(training_args.output_dir, exist_ok=True)
 
+    # Flattened/packed collators emit 1D cu_seqlens masks for flash_attn varlen.
+    # SDPA (and plain eager) expect 2D [B, L] padding masks; under transformers 5
+    # that mismatch raises IndexError in _ignore_causal_mask_sdpa on the first step.
+    if attn_implementation != "flash_attention_2" and (
+        data_args.data_flatten or data_args.data_packing
+    ):
+        logging.warning(
+            "data_flatten/data_packing require flash_attn varlen attention masks; "
+            "disabling them for attn_implementation=%s",
+            attn_implementation,
+        )
+        data_args.data_flatten = False
+        data_args.data_packing = False
+
     model_name_lower = model_args.model_name_or_path.lower()
     if "qwen3" in model_name_lower and "a" in Path(model_args.model_name_or_path.rstrip("/")).name.lower():
         if Qwen3VLMoeForConditionalGeneration is None:
@@ -246,5 +260,11 @@ if __name__ == "__main__":
         import flash_attn  # noqa: F401
         _attn = "flash_attention_2"
     except ImportError:
-        _attn = "sdpa"
+        # Prefer eager over sdpa: with Qwen3-VL + lab collators, sdpa still hits
+        # padding_mask IndexError under transformers 5 even after mask shape fixes.
+        _attn = "eager"
+        logging.warning(
+            "flash_attn not installed; using attn_implementation=eager "
+            "(sdpa is unsafe with this training path on transformers 5)."
+        )
     train(attn_implementation=_attn)
