@@ -27,12 +27,22 @@ sys.path.append(str(project_root))
 
 from trainer import replace_qwen2_vl_attention_class
 
-from transformers import (
-    Qwen2VLForConditionalGeneration,
-    Qwen2_5_VLForConditionalGeneration,
-    Qwen3VLForConditionalGeneration,
-    Qwen3VLMoeForConditionalGeneration
-)
+try:
+    from transformers import Qwen2VLForConditionalGeneration
+except ImportError:
+    Qwen2VLForConditionalGeneration = None  # type: ignore[misc,assignment]
+try:
+    from transformers import Qwen2_5_VLForConditionalGeneration
+except ImportError:
+    Qwen2_5_VLForConditionalGeneration = None  # type: ignore[misc,assignment]
+try:
+    from transformers import Qwen3VLForConditionalGeneration
+except ImportError:
+    Qwen3VLForConditionalGeneration = None  # type: ignore[misc,assignment]
+try:
+    from transformers import Qwen3VLMoeForConditionalGeneration
+except ImportError:
+    Qwen3VLMoeForConditionalGeneration = None  # type: ignore[misc,assignment]
 from qwenvl.data.data_processor import make_supervised_data_module
 from qwenvl.train.argument import (
     ModelArguments,
@@ -100,7 +110,13 @@ def train(attn_implementation="flash_attention_2"):
     local_rank = training_args.local_rank
     os.makedirs(training_args.output_dir, exist_ok=True)
 
-    if "qwen3" in model_args.model_name_or_path.lower() and "a" in Path(model_args.model_name_or_path.rstrip("/")).name.lower():
+    model_name_lower = model_args.model_name_or_path.lower()
+    if "qwen3" in model_name_lower and "a" in Path(model_args.model_name_or_path.rstrip("/")).name.lower():
+        if Qwen3VLMoeForConditionalGeneration is None:
+            raise ImportError(
+                "Qwen3VLMoeForConditionalGeneration is unavailable in this "
+                "transformers install; upgrade transformers or pick another model."
+            )
         model = Qwen3VLMoeForConditionalGeneration.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -108,7 +124,12 @@ def train(attn_implementation="flash_attention_2"):
             dtype=(torch.bfloat16 if training_args.bf16 else None),
         )
         data_args.model_type = "qwen3vl"
-    elif "qwen3" in model_args.model_name_or_path.lower():
+    elif "qwen3" in model_name_lower:
+        if Qwen3VLForConditionalGeneration is None:
+            raise ImportError(
+                "Qwen3VLForConditionalGeneration is unavailable in this "
+                "transformers install; upgrade transformers or pick another model."
+            )
         model = Qwen3VLForConditionalGeneration.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -116,7 +137,12 @@ def train(attn_implementation="flash_attention_2"):
             dtype=(torch.bfloat16 if training_args.bf16 else None),
         )
         data_args.model_type = "qwen3vl"
-    elif "qwen2.5" in model_args.model_name_or_path.lower():
+    elif "qwen2.5" in model_name_lower:
+        if Qwen2_5_VLForConditionalGeneration is None:
+            raise ImportError(
+                "Qwen2_5_VLForConditionalGeneration is unavailable in this "
+                "transformers install; upgrade transformers or pick another model."
+            )
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -125,6 +151,11 @@ def train(attn_implementation="flash_attention_2"):
         )
         data_args.model_type = "qwen2.5vl"
     else:
+        if Qwen2VLForConditionalGeneration is None:
+            raise ImportError(
+                "Qwen2VLForConditionalGeneration is unavailable in this "
+                "transformers install; upgrade transformers or pick another model."
+            )
         model = Qwen2VLForConditionalGeneration.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -180,8 +211,16 @@ def train(attn_implementation="flash_attention_2"):
         set_model(model_args, model)
 
         if torch.distributed.get_rank() == 0:
-            model.visual.print_trainable_parameters()
-            model.model.print_trainable_parameters()
+            # Methods come from optional monkey-patches in trainer.py; skip if
+            # the corresponding transformers class was unavailable.
+            if hasattr(model.visual, "print_trainable_parameters"):
+                model.visual.print_trainable_parameters()
+            if hasattr(model, "model") and hasattr(model.model, "print_trainable_parameters"):
+                model.model.print_trainable_parameters()
+            elif hasattr(model, "language_model") and hasattr(
+                model.language_model, "print_trainable_parameters"
+            ):
+                model.language_model.print_trainable_parameters()
     
     data_module = make_supervised_data_module(processor, data_args=data_args)
     trainer = Trainer(
