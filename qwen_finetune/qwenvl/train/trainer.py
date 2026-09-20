@@ -1,7 +1,12 @@
 from typing import Dict, List, Optional, Sequence, Tuple, Callable
 
 import torch
-from flash_attn.flash_attn_interface import flash_attn_varlen_func
+try:
+    from flash_attn.flash_attn_interface import flash_attn_varlen_func
+    _HAS_FLASH_ATTN = True
+except ImportError:
+    flash_attn_varlen_func = None
+    _HAS_FLASH_ATTN = False
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers import Trainer
 from transformers.cache_utils import Cache
@@ -213,6 +218,13 @@ def return_mask(
 
 
 def replace_qwen2_vl_attention_class():
+    if not _HAS_FLASH_ATTN:
+        logger.warning_once(
+            "flash_attn is not installed; skipping custom FlashAttention patches. "
+            "Use attn_implementation='sdpa' or 'eager'."
+        )
+        return
+
     import transformers
     import transformers.modeling_flash_attention_utils
 
