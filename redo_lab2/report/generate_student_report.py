@@ -188,7 +188,7 @@ def build():
     story.append(
         Paragraph(
             "Xiyuan Xu &nbsp;|&nbsp; Redone Oct 12–13, 2026 "
-            "&nbsp;|&nbsp; Instructor: M. Chuah",
+            "&nbsp;|&nbsp; Instructor: Professor Chuah",
             s["meta"],
         )
     )
