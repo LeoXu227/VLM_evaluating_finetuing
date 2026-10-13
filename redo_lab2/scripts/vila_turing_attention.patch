@@ -1,0 +1,17 @@
+diff --git a/llava/model/multimodal_encoder/siglip/modeling_siglip.py b/llava/model/multimodal_encoder/siglip/modeling_siglip.py
+index a433964..d1585c6 100644
+--- a/llava/model/multimodal_encoder/siglip/modeling_siglip.py
++++ b/llava/model/multimodal_encoder/siglip/modeling_siglip.py
+@@ -464,6 +464,12 @@ class SiglipFlashAttention2(SiglipAttention):
+         attention_mask: Optional[torch.LongTensor] = None,
+         output_attentions: bool = False,
+     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
++        # FlashAttention 2 requires compute capability >= 8.0 (Ampere). MAGIC
++        # uses Turing RTX 2080 Ti GPUs (7.5), so use the mathematically equivalent
++        # eager attention inherited from SiglipAttention on pre-Ampere hardware.
++        if hidden_states.is_cuda and torch.cuda.get_device_capability(hidden_states.device)[0] < 8:
++            return super().forward(hidden_states, attention_mask, output_attentions)
++
+         output_attentions = False
+ 
+         batch_size, q_len, _ = hidden_states.size()

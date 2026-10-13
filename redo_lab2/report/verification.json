@@ -1,0 +1,153 @@
+{
+  "question_ids_identical_across_models": true,
+  "num_questions": 4000,
+  "num_answered": {
+    "base": 3984,
+    "lora": 3977,
+    "vila": 4000
+  },
+  "num_correct": {
+    "base": 2702,
+    "lora": 2701,
+    "vila": 1942
+  },
+  "accuracy": {
+    "base": 0.6755,
+    "lora": 0.67525,
+    "vila": 0.4855
+  },
+  "wilson95": {
+    "base": [
+      0.660828308251725,
+      0.6898349147888667
+    ],
+    "lora": [
+      0.6605756506727299,
+      0.6895880521071204
+    ],
+    "vila": [
+      0.4700326950313942,
+      0.5009951298455938
+    ]
+  },
+  "base_vs_lora": {
+    "base_only_correct": 99,
+    "lora_only_correct": 98,
+    "mcnemar_chi2_continuity_p": 1.0
+  },
+  "base_vs_vila": {
+    "base_only_correct": 1132,
+    "vila_only_correct": 372,
+    "mcnemar_chi2_continuity_p": 2.720995248620956e-85
+  },
+  "lora_vs_vila": {
+    "lora_only_correct": 1119,
+    "vila_only_correct": 360,
+    "mcnemar_chi2_continuity_p": 1.7720605919340768e-86
+  },
+  "by_type": [
+    {
+      "type": "Object and Land Cover Recognition",
+      "n": 660,
+      "base": 472,
+      "lora": 477,
+      "vila": 356
+    },
+    {
+      "type": "Change Detection",
+      "n": 500,
+      "base": 307,
+      "lora": 310,
+      "vila": 229
+    },
+    {
+      "type": "Temporal Grounding",
+      "n": 640,
+      "base": 302,
+      "lora": 288,
+      "vila": 196
+    },
+    {
+      "type": "General Understanding",
+      "n": 180,
+      "base": 159,
+      "lora": 158,
+      "vila": 152
+    },
+    {
+      "type": "Trend and Pattern",
+      "n": 360,
+      "base": 255,
+      "lora": 260,
+      "vila": 172
+    },
+    {
+      "type": "Structural Layout",
+      "n": 340,
+      "base": 255,
+      "lora": 252,
+      "vila": 179
+    },
+    {
+      "type": "Perspective and Viewpoint",
+      "n": 480,
+      "base": 286,
+      "lora": 291,
+      "vila": 208
+    },
+    {
+      "type": "Causation Reasoning",
+      "n": 180,
+      "base": 165,
+      "lora": 164,
+      "vila": 135
+    },
+    {
+      "type": "Consequence Reasoning",
+      "n": 100,
+      "base": 88,
+      "lora": 89,
+      "vila": 77
+    },
+    {
+      "type": "Hypothetical Reasoning",
+      "n": 160,
+      "base": 138,
+      "lora": 141,
+      "vila": 86
+    },
+    {
+      "type": "Geometric Relation",
+      "n": 400,
+      "base": 275,
+      "lora": 271,
+      "vila": 152
+    }
+  ],
+  "example_ids": {
+    "lora_fix_first": [
+      "QA-000083",
+      "QA-000087",
+      "QA-000178",
+      "QA-000185",
+      "QA-000223"
+    ],
+    "lora_reg_first": [
+      "QA-000326",
+      "QA-000371",
+      "QA-000914",
+      "QA-001652",
+      "QA-002007"
+    ],
+    "vila_only_temporal_first": [
+      "QA-000141",
+      "QA-001389",
+      "QA-001850",
+      "QA-001896",
+      "QA-002449"
+    ],
+    "old_fig_ids_present": {
+      "QA-011303": true
+    }
+  }
+}

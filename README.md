@@ -1,3 +1,12 @@
+# CSE398 Lab 2 (Xiyuan Xu)
+
+Full 4,000-question ReVA redo: report, scripts, and scores are in [`redo_lab2/`](redo_lab2/).
+
+- Report: [`redo_lab2/report/CSE398_Lab2_ReVA_Redo_Report.pdf`](redo_lab2/report/CSE398_Lab2_ReVA_Redo_Report.pdf)
+- Qwen base 2702/4000 (67.55%), Qwen LoRA 2701/4000 (67.53%), VILA 1942/4000 (48.55%)
+
+---
+
 # Qwen + ReVA Assignment Project
 
 ## Student Assignment

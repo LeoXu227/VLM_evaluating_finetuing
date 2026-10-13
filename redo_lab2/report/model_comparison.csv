@@ -1,0 +1,4 @@
+model,num_questions,num_answered,num_correct,accuracy,ci95_low,ci95_high
+Qwen3-VL base,4000,3984,2702,0.675500,0.660828,0.689835
+Qwen3-VL LoRA,4000,3977,2701,0.675250,0.660576,0.689588
+VILA1.5-3B,4000,4000,1942,0.485500,0.470033,0.500995
